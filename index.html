@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ボカロランキング</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">♪</span>
+        <span class="logo-text">ボカロランキング</span>
+      </div>
+      <p class="tagline">YouTube で最新の人気ボカロ曲をチェック</p>
+    </div>
+  </header>
+
+  <!-- APIキー設定画面 -->
+  <div id="setup-screen" class="setup-screen">
+    <div class="setup-card">
+      <h2>初回設定</h2>
+      <p>YouTube Data API v3 のキーを入力してください。<br />
+         キーはこのブラウザにのみ保存されます。外部には送信されません。</p>
+      <div class="key-input-row">
+        <input id="api-key-input" type="password" placeholder="AIzaSy..." autocomplete="off" />
+        <button onclick="saveApiKey()">保存して開始</button>
+      </div>
+      <details class="how-to">
+        <summary>APIキーの取得方法（無料）</summary>
+        <ol>
+          <li>Google Cloud Console（cloud.google.com）にアクセスしGoogleアカウントでログイン</li>
+          <li>新しいプロジェクトを作成</li>
+          <li>「APIとサービス」→「ライブラリ」→「YouTube Data API v3」を有効化</li>
+          <li>「APIとサービス」→「認証情報」→「認証情報を作成」→「APIキー」</li>
+          <li>発行されたキーをコピーして上の欄に貼り付け</li>
+        </ol>
+        <p class="note">無料枠：1日10,000クォータ（通常使用で十分です）</p>
+      </details>
+    </div>
+  </div>
+
+  <!-- メインアプリ -->
+  <main id="main-app" style="display:none">
+
+    <div class="controls-bar">
+      <!-- 検索 -->
+      <div class="search-row">
+        <input id="search-input" type="text" placeholder="曲名・アーティスト名を検索..."
+          onkeydown="if(event.key==='Enter') doSearch()" />
+        <button class="btn-search" onclick="doSearch()">検索</button>
+        <button class="btn-reset" onclick="resetSearch()">リセット</button>
+      </div>
+      <!-- フィルター -->
+      <div class="filter-row">
+        <label>
+          キャラクター
+          <select id="char-select" onchange="loadRanking()">
+            <option value="ボカロ曲">すべて</option>
+            <option value="初音ミク ボカロ">初音ミク</option>
+            <option value="鏡音リン ボカロ">鏡音リン</option>
+            <option value="鏡音レン ボカロ">鏡音レン</option>
+            <option value="巡音ルカ ボカロ">巡音ルカ</option>
+            <option value="KAITO ボカロ">KAITO</option>
+            <option value="MEIKO ボカロ">MEIKO</option>
+            <option value="flower ボカロ">flower</option>
+          </select>
+        </label>
+        <label>
+          並び順
+          <select id="order-select" onchange="loadRanking()">
+            <option value="viewCount">再生数順</option>
+            <option value="date">新着順</option>
+            <option value="relevance">関連度順</option>
+          </select>
+        </label>
+        <label>
+          期間
+          <select id="period-select" onchange="loadRanking()">
+            <option value="week">今週</option>
+            <option value="month">今月</option>
+            <option value="year">今年</option>
+            <option value="all">全期間</option>
+          </select>
+        </label>
+        <label>
+          表示
+          <select id="view-select" onchange="switchView(this.value)">
+            <option value="ranking">ランキング</option>
+            <option value="favorites">お気に入り</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div id="fav-notice" class="fav-notice" style="display:none">
+      ♥ お気に入りに登録した曲（ブラウザに保存されます）
+    </div>
+
+    <div id="loading" class="loading" style="display:none">
+      <div class="spinner"></div>
+      <p>取得中...</p>
+    </div>
+
+    <div id="error-box" class="error-box" style="display:none">
+      <p id="error-msg"></p>
+      <button onclick="resetApiKey()">APIキーをリセット</button>
+    </div>
+
+    <div id="songs-grid" class="songs-grid"></div>
+
+    <div class="more-row">
+      <button id="load-more-btn" style="display:none" onclick="loadMore()">もっと見る</button>
+    </div>
+
+  </main>
+
+  <footer>
+    <p>
+      データ取得に <a href="https://developers.google.com/youtube/terms/api-services-terms-of-service" target="_blank" rel="noopener">YouTube Data API v3</a>（Google LLC）を使用しています。
+      動画・楽曲の著作権はそれぞれの権利者に帰属します。
+    </p>
+    <button class="btn-key-reset" onclick="resetApiKey()">APIキーを変更</button>
+  </footer>
+
+  <!-- 動画プレビューモーダル -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-backdrop" onclick="closeModal()"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button class="modal-close" onclick="closeModal()" aria-label="閉じる">✕</button>
+      </div>
+      <div class="modal-player">
+        <iframe id="modal-iframe" src="" allowfullscreen
+          allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+      </div>
+      <div class="modal-footer">
+        <a id="modal-ext-link" href="#" target="_blank" rel="noopener" class="btn-ext">
+          YouTubeで開く ↗
+        </a>
+        <button id="modal-fav-btn" class="btn-modal-fav" onclick="toggleFavFromModal()">
+          ♡ お気に入り
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- デプロイ時に GitHub Actions が config.js を生成してAPIキーを注入します -->
+  <!-- ローカルでは config.js が存在しないため、このフォールバックが使われます -->
+  <script>var DEPLOY_API_KEY = '';</script>
+  <script src="config.js" onerror="void 0"></script>
+  <script src="app.js"></script>
+</body>
+</html>
